@@ -133,8 +133,10 @@ module Roar
         private
 
         def has_relationship(name, options = {}, &block)
-          resource_decorator = options.delete(:decorator) ||
-                               options.delete(:extend)    ||
+          decorator_options = options.delete(:decorator) || options.delete(:extend)
+          decorator_options = constantize(decorator_options) if decorator_options
+
+          resource_decorator = decorator_options    ||
                                Class.new(Roar::Decorator).tap { |decorator|
                                  decorator.send(:include, JSONAPI::Resource.new(
                                                             name,
@@ -142,7 +144,6 @@ module Roar
                                  ))
                                }
           resource_decorator.instance_exec(&block) if block
-
           resource_identifier_representer = Class.new(resource_decorator)
           resource_identifier_representer.class_eval do
             def to_hash(_options = {})
@@ -191,6 +192,16 @@ module Roar
             end
           end
         end
+
+        # https://github.com/jeremyevans/sequel/blob/master/lib/sequel/model/inflections.rb#L132-L140
+        # enable us to pass constants as strings
+        def constantize(s)
+          s = s.to_s
+          return s.constantize if s.respond_to?(:constantize)
+          raise(NameError, "#{s.inspect} is not a valid constant name!") unless m = /\A(?:::)?([A-Z]\w*(?:::[A-Z]\w*)*)\z/.match(s)
+          Object.module_eval("::#{m[1]}", __FILE__, __LINE__)
+        end
+
       end
     end
   end
